@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NodeIdempotencyModule, StorageAdapterEnum } from '@node-idempotency/nestjs';
+import { AuthModule } from './auth/auth.module';
 import { PaymentEntity } from './payments/entities/payment.entity';
 import { PaymentsModule } from './payments/payments.module';
 
@@ -22,6 +23,7 @@ import { PaymentsModule } from './payments/payments.module';
       enforceIdempotency: true,
       cacheTTLMS: 1000 * 60 * 60 * 24,
     }),
+    AuthModule,
     PaymentsModule,
   ],
 })

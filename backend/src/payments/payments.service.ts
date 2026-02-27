@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { RequestUser } from '../auth/auth.types';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentEntity } from './entities/payment.entity';
 import { PaymentStatus } from './payment.enums';
@@ -24,8 +25,13 @@ export class PaymentsService {
     private readonly mockPspService: MockPspService,
   ) {}
 
-  async createPayment(dto: CreatePaymentDto): Promise<PaymentResponse> {
-    const existing = await this.paymentRepository.findOneBy({ orderId: dto.orderId });
+  async createPayment(dto: CreatePaymentDto, user: RequestUser): Promise<PaymentResponse> {
+    const existing = await this.paymentRepository.findOneBy({
+      orderId: dto.orderId,
+      orgId: user.orgId,
+      userId: user.userId,
+    });
+
     if (existing) {
       return {
         paymentId: existing.id,
@@ -47,6 +53,8 @@ export class PaymentsService {
       currency: dto.currency,
       status: PaymentStatus.SUCCEEDED,
       pspRef: psp.pspRef,
+      userId: user.userId,
+      orgId: user.orgId,
     });
     await this.paymentRepository.save(payment);
 
@@ -60,7 +68,17 @@ export class PaymentsService {
     };
   }
 
-  async listPayments(): Promise<PaymentEntity[]> {
-    return this.paymentRepository.find({ order: { createdAt: 'DESC' } });
+  async listPayments(user: RequestUser): Promise<PaymentEntity[]> {
+    if (user.role === 'admin') {
+      return this.paymentRepository.find({
+        where: { orgId: user.orgId },
+        order: { createdAt: 'DESC' },
+      });
+    }
+
+    return this.paymentRepository.find({
+      where: { orgId: user.orgId, userId: user.userId },
+      order: { createdAt: 'DESC' },
+    });
   }
 }

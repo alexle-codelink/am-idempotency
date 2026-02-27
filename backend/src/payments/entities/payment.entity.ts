@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, PrimaryColumn, Unique } from 'typeorm
 import { PaymentStatus } from '../payment.enums';
 
 @Entity({ name: 'payments' })
-@Unique('uq_payments_order_id', ['orderId'])
+@Unique('uq_payments_order_scope', ['orderId', 'orgId', 'userId'])
 export class PaymentEntity {
   @PrimaryColumn()
   id: string;
@@ -21,6 +21,12 @@ export class PaymentEntity {
 
   @Column({ name: 'psp_ref', type: 'text', nullable: true })
   pspRef: string | null;
+
+  @Column({ name: 'user_id' })
+  userId: string;
+
+  @Column({ name: 'org_id' })
+  orgId: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

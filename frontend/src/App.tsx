@@ -11,12 +11,18 @@ type PaymentResponse = {
 }
 
 function App() {
+  const [role, setRole] = useState<'member' | 'admin'>('member')
+  const [orgId, setOrgId] = useState('org-1')
+  const [userId, setUserId] = useState('user-1')
   const [orderId, setOrderId] = useState('ord_1001')
   const [amount, setAmount] = useState(125000)
   const [currency, setCurrency] = useState('VND')
   const [idempotencyKey, setIdempotencyKey] = useState(crypto.randomUUID())
+  const [authToken, setAuthToken] = useState('')
   const [result, setResult] = useState<unknown>(null)
   const [loading, setLoading] = useState(false)
+
+  const token = useMemo(() => authToken, [authToken])
 
   const payload = useMemo(
     () => ({
@@ -27,6 +33,28 @@ function App() {
     [amount, currency, orderId],
   )
 
+  const login = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('http://localhost:3000/api/v1/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role, orgId, userId }),
+      })
+      const body = (await response.json()) as { accessToken: string }
+      if (response.ok) {
+        setAuthToken(body.accessToken)
+      }
+      setResult({ statusCode: response.status, body })
+    } catch (error) {
+      setResult({ statusCode: 'NETWORK_ERROR', body: String(error) })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const sendPayment = async (key: string) => {
     setLoading(true)
     try {
@@ -34,6 +62,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
           'Idempotency-Key': key,
         },
         body: JSON.stringify(payload),
@@ -49,7 +78,11 @@ function App() {
   }
 
   const listPayments = async () => {
-    const response = await fetch('http://localhost:3000/api/v1/payments')
+    const response = await fetch('http://localhost:3000/api/v1/payments', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
     const body = (await response.json()) as unknown
     setResult({ statusCode: response.status, body })
   }
@@ -62,6 +95,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
           'Idempotency-Key': key,
         },
         body: JSON.stringify(payload),
@@ -77,9 +111,22 @@ function App() {
     <main className="container">
       <h1>Payment</h1>
       <div className="form-grid">
+        <label>
+          Role
+          <select value={role} onChange={(e) => setRole(e.target.value as 'member' | 'admin')}>
+            <option value="member">member</option>
+            <option value="admin">admin</option>
+          </select>
+        </label>
+        <label>User ID<input value={userId} onChange={(e) => setUserId(e.target.value)} /></label>
+        <label>Org ID<input value={orgId} onChange={(e) => setOrgId(e.target.value)} /></label>
         <label>Order ID<input value={orderId} onChange={(e) => setOrderId(e.target.value)} /></label>
         <label>Amount<input type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></label>
         <label>Currency<input value={currency} onChange={(e) => setCurrency(e.target.value)} /></label>
+      </div>
+
+      <div className="key-row">
+        <span>Authorization: {token ? `Bearer ${token}` : '(login required)'}</span>
       </div>
 
       <div className="key-row">
@@ -88,10 +135,11 @@ function App() {
       </div>
 
       <div className="actions">
-        <button disabled={loading} onClick={() => sendPayment(idempotencyKey)}>Pay</button>
-        <button disabled={loading} onClick={() => sendPayment(idempotencyKey)}>Retry Same Key</button>
+        <button disabled={loading} onClick={login}>Login</button>
+        <button disabled={loading || !token} onClick={() => sendPayment(idempotencyKey)}>Pay</button>
+        <button disabled={loading || !token} onClick={() => sendPayment(idempotencyKey)}>Retry Same Key</button>
         <button
-          disabled={loading}
+          disabled={loading || !token}
           onClick={() => {
             const next = crypto.randomUUID()
             setIdempotencyKey(next)
@@ -100,8 +148,8 @@ function App() {
         >
           Retry New Key
         </button>
-        <button disabled={loading} onClick={sendParallel}>Send 5 Parallel Same-Key Requests</button>
-        <button disabled={loading} onClick={listPayments}>List Payments</button>
+        <button disabled={loading || !token} onClick={sendParallel}>Send 5 Parallel Same-Key Requests</button>
+        <button disabled={loading || !token} onClick={listPayments}>List Payments</button>
       </div>
 
       <pre className="result">{JSON.stringify(result, null, 2)}</pre>
